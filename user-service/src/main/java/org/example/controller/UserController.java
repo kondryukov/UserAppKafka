@@ -5,6 +5,8 @@ import org.example.dto.CreateUserRequest;
 import org.example.dto.UpdateUserRequest;
 import org.example.dto.UserResponse;
 import org.example.service.UserService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -18,6 +20,7 @@ import java.util.List;
 public class UserController {
 
     private final UserService service;
+    private final Logger log = LoggerFactory.getLogger(UserController.class);
 
     public UserController(UserService service) {
         this.service = service;
@@ -37,9 +40,8 @@ public class UserController {
     public ResponseEntity<UserResponse> createUser(@Valid @RequestBody CreateUserRequest request,
                                                    UriComponentsBuilder uri) {
         UserResponse created = service.createUser(request);
-        return ResponseEntity.created(
-                uri.path("/users/{id}").buildAndExpand(created.id()).toUri()
-        ).body(created);
+        log.info("User created: {}", created);
+        return ResponseEntity.created(uri.path("/users/{id}").buildAndExpand(created.id()).toUri()).body(created);
     }
 
     @PutMapping(path = "update/{id}", consumes = MediaType.APPLICATION_JSON_VALUE)

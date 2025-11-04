@@ -7,9 +7,11 @@ import org.example.dto.UserResponse;
 import org.example.exception.types.ConflictException;
 import org.example.exception.types.NotFoundException;
 import org.example.mapper.UserMapper;
+import org.example.messaging.UserKafkaProducer;
 import org.example.repository.UserRepository;
 import org.example.service.UserService;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentMatchers;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -28,6 +30,8 @@ class UserServiceTest {
     UserRepository userRepository;
     @Mock
     UserMapper mapper;
+    @Mock
+    UserKafkaProducer userKafkaProducer;
     @InjectMocks
     UserService service;
 
@@ -66,7 +70,7 @@ class UserServiceTest {
         when(mapper.fromCreate(createUserRequest)).thenReturn(user);
         when(mapper.toResponse(user)).thenReturn(userResponse);
         when(userRepository.save(user)).thenReturn(user);
-
+        doNothing().when(userKafkaProducer).sendUserToKafka(ArgumentMatchers.any());
 
         assertThat(service.createUser(createUserRequest)).isNotNull();
         assertThat(service.createUser(createUserRequest)).isEqualTo(userResponse);

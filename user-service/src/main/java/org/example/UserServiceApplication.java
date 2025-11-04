@@ -6,9 +6,9 @@ import org.springframework.boot.autoconfigure.domain.EntityScan;
 
 @SpringBootApplication(scanBasePackages = "org.example")
 @EntityScan(basePackages = "org.example.domain")
-public class UserAppSpringApplication {
+public class UserServiceApplication {
 
     public static void main(String[] args) {
-        SpringApplication.run(UserAppSpringApplication.class, args);
+        SpringApplication.run(UserServiceApplication.class, args);
     }
 }

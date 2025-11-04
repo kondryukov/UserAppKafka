@@ -1,10 +1,12 @@
 package org.example.service;
 
 import jakarta.validation.*;
+import org.example.messaging.UserKafkaProducer;
 import org.example.domain.User;
 import org.example.dto.CreateUserRequest;
 import org.example.dto.UpdateUserRequest;
 import org.example.dto.UserResponse;
+import org.example.events.UserEvent;
 import org.example.exception.types.ConflictException;
 import org.example.exception.types.NotFoundException;
 import org.example.mapper.UserMapper;
@@ -22,10 +24,12 @@ public class UserService {
 
     private final UserMapper userMapper;
     private final UserRepository userRepository;
+    private final UserKafkaProducer userKafkaProducer;
 
-    public UserService(UserRepository userRepository, UserMapper userMapper) {
+    public UserService(UserRepository userRepository, UserMapper userMapper, UserKafkaProducer userKafkaProducer) {
         this.userRepository = userRepository;
         this.userMapper = userMapper;
+        this.userKafkaProducer = userKafkaProducer;
     }
 
     @Transactional
@@ -34,6 +38,12 @@ public class UserService {
         mailUnique(normalizedEmail);
         User user = userMapper.fromCreate(request);
         userRepository.save(user);
+
+        UserEvent userEvent = new UserEvent();
+        userEvent.setEmail(normalizedEmail);
+        userEvent.setOperation("create");
+        userKafkaProducer.sendUserToKafka(userEvent);
+
         return userMapper.toResponse(user);
     }
 
@@ -57,8 +67,15 @@ public class UserService {
 
     @Transactional
     public void removeUserById(Long id) {
-        userRepository.findById(id).orElseThrow(() -> new NotFoundException("User not found"));
+        User user = userRepository.findById(id).orElseThrow(() -> new NotFoundException("User not found"));
+
+        UserEvent userEvent = new UserEvent();
+        userEvent.setEmail(user.getEmail());
+        userEvent.setOperation("delete");
+        userKafkaProducer.sendUserToKafka(userEvent);
+
         userRepository.deleteById(id);
+
     }
 
     @Transactional
