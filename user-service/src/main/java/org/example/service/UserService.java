@@ -1,15 +1,16 @@
 package org.example.service;
 
-import jakarta.validation.*;
-import org.example.messaging.UserKafkaProducer;
+import jakarta.validation.Valid;
 import org.example.domain.User;
 import org.example.dto.CreateUserRequest;
 import org.example.dto.UpdateUserRequest;
 import org.example.dto.UserResponse;
+import org.example.events.OperationType;
 import org.example.events.UserEvent;
 import org.example.exception.types.ConflictException;
 import org.example.exception.types.NotFoundException;
 import org.example.mapper.UserMapper;
+import org.example.messaging.UserKafkaProducer;
 import org.example.repository.UserRepository;
 import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Service;
@@ -41,7 +42,7 @@ public class UserService {
 
         UserEvent userEvent = new UserEvent();
         userEvent.setEmail(normalizedEmail);
-        userEvent.setOperation("create");
+        userEvent.setOperation(OperationType.CREATE);
         userKafkaProducer.sendUserToKafka(userEvent);
 
         return userMapper.toResponse(user);
@@ -71,7 +72,7 @@ public class UserService {
 
         UserEvent userEvent = new UserEvent();
         userEvent.setEmail(user.getEmail());
-        userEvent.setOperation("delete");
+        userEvent.setOperation(OperationType.DELETE);
         userKafkaProducer.sendUserToKafka(userEvent);
 
         userRepository.deleteById(id);
