@@ -4,25 +4,25 @@ import org.example.domain.User;
 import org.example.dto.CreateUserRequest;
 import org.example.dto.UpdateUserRequest;
 import org.example.dto.UserResponse;
+import org.example.events.OperationType;
+import org.example.events.UserEvent;
 import org.example.exception.types.ConflictException;
 import org.example.exception.types.NotFoundException;
 import org.example.mapper.UserMapper;
 import org.example.messaging.UserKafkaProducer;
 import org.example.repository.UserRepository;
 import org.example.service.UserService;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentMatchers;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.*;
+import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.util.*;
+import java.util.Date;
+import java.util.Optional;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.*;
-
-import static org.assertj.core.api.Assertions.*;
 
 @ExtendWith(MockitoExtension.class)
 class UserServiceTest {
@@ -70,10 +70,23 @@ class UserServiceTest {
         when(mapper.fromCreate(createUserRequest)).thenReturn(user);
         when(mapper.toResponse(user)).thenReturn(userResponse);
         when(userRepository.save(user)).thenReturn(user);
-        doNothing().when(userKafkaProducer).sendUserToKafka(ArgumentMatchers.any());
+
+        ArgumentCaptor<UserEvent> userEventArgumentCaptor = ArgumentCaptor.forClass(UserEvent.class);
+        UserResponse userResponseFromCreateUser = service.createUser(createUserRequest);
+
+        verify(userKafkaProducer, times(1)).sendUserToKafka(userEventArgumentCaptor.capture());
+        UserEvent sentEvent = userEventArgumentCaptor.getValue();
+        UserEvent userEvent = new UserEvent();
+        userEvent.setEmail("name@mail.ru");
+        userEvent.setOperation(OperationType.CREATE);
+
+        assertThat(sentEvent).isEqualTo(userEvent);
+        assertThat(sentEvent).isEqualTo(sentEvent);
+        assertThat(userEvent).isNotEqualTo(userResponse);
+        assertThat(userEvent).isNotEqualTo(null);
 
         assertThat(service.createUser(createUserRequest)).isNotNull();
-        assertThat(service.createUser(createUserRequest)).isEqualTo(userResponse);
+        assertThat(userResponseFromCreateUser).isEqualTo(userResponse);
     }
 
     @Test
