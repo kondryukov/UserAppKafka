@@ -1,0 +1,35 @@
+spring:
+  application:
+    name: notification-services
+  kafka:
+    consumer:
+      group-id: notification-group
+      auto-offset-reset: latest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring:
+          json:
+            trusted:
+              packages: org.example.events
+            value:
+              default:
+                type: org.example.events.UserEvent
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: sendermailtouser@gmail.com
+    password:
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
+server:
+  port: 8081
+
+app:
+  kafka:
+    user-topic: users
