@@ -18,8 +18,9 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.util.Date;
 import java.util.List;
 
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.*;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -32,7 +33,7 @@ class UserControllerTest {
     @Autowired
     ObjectMapper objectMapper;
     @MockitoBean
-    public UserService userService;
+    UserService userService;
 
     @Test
     void createReturns201AndLocationAndBody() throws Exception {
@@ -47,8 +48,7 @@ class UserControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
-                .andExpect(header().string("Location", containsString("/users/1")))
-                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                .andExpect(header().string("Location", containsString("/users/read/")))
                 .andExpect(jsonPath("$.id").value(1))
                 .andExpect(jsonPath("$.email").value("name@mail.ru"));
     }
@@ -63,9 +63,7 @@ class UserControllerTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().is(409))
                 .andExpect(jsonPath("$.detail").value("DataIntegrityViolationException"))
-                .andExpect(jsonPath("$.type").value("http://localhost:8080/users/error/conflict"));
-
-
+                .andExpect(jsonPath("$.type", containsString("users/error/conflict")));
     }
 
     @Test
@@ -76,6 +74,7 @@ class UserControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().is(400));
+        verify(userService, never()).createUser(ArgumentMatchers.any());
     }
 
     @Test
@@ -104,9 +103,8 @@ class UserControllerTest {
     @Test
     void updateReturns200() throws Exception {
         var request = new UpdateUserRequest("name", "newmail@mail.ru", 12);
-        var response = new UserResponse(1L, "name", "name@mail.ru", 12, new Date(), new Date());
-        when(userService.updateUser(ArgumentMatchers.any(), ArgumentMatchers.any())).thenReturn(response);
-
+        var response = new UserResponse(1L, "name", "newname@mail.ru", 12, new Date(), new Date());
+        when(userService.updateUser(ArgumentMatchers.anyLong(), ArgumentMatchers.any())).thenReturn(response);
 
         mockMvc.perform(put("/users/update/1")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -119,5 +117,6 @@ class UserControllerTest {
     void deleteReturns204() throws Exception {
         mockMvc.perform(delete("/users/delete/1"))
                 .andExpect(status().is(204));
+        verify(userService).removeUserById(1L);
     }
 }

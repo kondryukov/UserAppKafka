@@ -41,7 +41,7 @@ public class UserController {
                                                    UriComponentsBuilder uri) {
         UserResponse created = service.createUser(request);
         log.info("User created: {}", created);
-        return ResponseEntity.created(uri.path("/users/{id}").buildAndExpand(created.id()).toUri()).body(created);
+        return ResponseEntity.created(uri.path("/users/read/{id}").buildAndExpand(created.id()).toUri()).body(created);
     }
 
     @PutMapping(path = "update/{id}", consumes = MediaType.APPLICATION_JSON_VALUE)

@@ -26,12 +26,16 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class UserServiceTest {
+
     @Mock
     UserRepository userRepository;
+
     @Mock
     UserMapper mapper;
+
     @Mock
     UserKafkaProducer userKafkaProducer;
+
     @InjectMocks
     UserService service;
 
@@ -54,39 +58,30 @@ class UserServiceTest {
 
     @Test
     void createUser() {
-        User user = new User();
-        user.setName("name");
-        user.setAge(1);
-        user.setEmail("name@mail.ru");
-        user.setId(1L);
         Date date = new Date();
-        user.setCreatedAt(date);
-        user.setUpdatedAt(date);
+        User user = new User(1L, "name", "name@mail.ru", 123, date, date);
 
         CreateUserRequest createUserRequest = new CreateUserRequest("name", "naME@mail.ru", 1);
-        UserResponse userResponse = new UserResponse(1L, "name", "name@mail.ru", 1, date, date);
+        UserResponse expectedResponse = new UserResponse(1L, "name", "name@mail.ru", 1, date, date);
 
         when(userRepository.existsUserByEmail("name@mail.ru")).thenReturn(false);
         when(mapper.fromCreate(createUserRequest)).thenReturn(user);
-        when(mapper.toResponse(user)).thenReturn(userResponse);
+        when(mapper.toResponse(user)).thenReturn(expectedResponse);
         when(userRepository.save(user)).thenReturn(user);
 
         ArgumentCaptor<UserEvent> userEventArgumentCaptor = ArgumentCaptor.forClass(UserEvent.class);
-        UserResponse userResponseFromCreateUser = service.createUser(createUserRequest);
+        UserResponse actualResponse = service.createUser(createUserRequest);
 
+        assertThat(actualResponse).isEqualTo(expectedResponse);
         verify(userKafkaProducer, times(1)).sendUserToKafka(userEventArgumentCaptor.capture());
-        UserEvent sentEvent = userEventArgumentCaptor.getValue();
-        UserEvent userEvent = new UserEvent();
-        userEvent.setEmail("name@mail.ru");
-        userEvent.setOperation(OperationType.CREATE);
 
-        assertThat(sentEvent).isEqualTo(userEvent);
-        assertThat(sentEvent).isEqualTo(sentEvent);
-        assertThat(userEvent).isNotEqualTo(userResponse);
-        assertThat(userEvent).isNotEqualTo(null);
+        UserEvent actualEvent = userEventArgumentCaptor.getValue();
 
-        assertThat(service.createUser(createUserRequest)).isNotNull();
-        assertThat(userResponseFromCreateUser).isEqualTo(userResponse);
+        assertThat(actualEvent.getEmail()).isEqualTo("name@mail.ru");
+        assertThat(actualEvent.getOperation()).isEqualTo(OperationType.CREATE);
+        verify(userRepository).existsUserByEmail("name@mail.ru");
+        verify(userRepository).save(user);
+        verifyNoMoreInteractions(userKafkaProducer);
     }
 
     @Test
@@ -103,8 +98,7 @@ class UserServiceTest {
 
     @Test
     void readNotExistingUser() {
-        when(userRepository.findById(1L)).thenThrow(new NotFoundException("User not found"));
-
+        when(userRepository.findById(1L)).thenReturn(Optional.empty());
         assertThrows(NotFoundException.class, () -> service.readUser(1L));
     }
 
@@ -113,15 +107,56 @@ class UserServiceTest {
         Date date = new Date();
         User user = new User(1L, "name", "name@mail.ru", 123, date, date);
         UpdateUserRequest updateUserRequest = new UpdateUserRequest(null, "newName@mail.ru", 123);
-        UserResponse userResponse = new UserResponse(1L, "name", "newname@mail.ru", 1, date, date);
+        UserResponse expectedResponse = new UserResponse(1L, "name", "newname@mail.ru", 1, date, date);
 
         when(userRepository.findById(1L)).thenReturn(Optional.of(user));
         when(userRepository.existsUserByEmail("newname@mail.ru")).thenReturn(false);
+        when(mapper.toResponse(user)).thenReturn(expectedResponse);
 
-        when(mapper.toResponse(user)).thenReturn(userResponse);
+        UserResponse actualResponse = service.updateUser(1L, updateUserRequest);
 
-        assertThat(service.updateUser(1L, updateUserRequest)).isNotNull();
-        assertThat(service.updateUser(1L, updateUserRequest)).isEqualTo(userResponse);
+        assertThat(actualResponse).isEqualTo(expectedResponse);
+        verify(userRepository).findById(1L);
+        verify(userRepository).existsUserByEmail("newname@mail.ru");
+        verify(mapper).toResponse(user);
+    }
+
+    @Test
+    void updateUserAllNull() {
+        Date date = new Date();
+        User user = new User(1L, "name", "name@mail.ru", 123, date, date);
+        UpdateUserRequest updateUserRequest = new UpdateUserRequest(null, null, null);
+        UserResponse expectedResponse = new UserResponse(1L, "name", "name@mail.ru", 123, date, date);
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(mapper.toResponse(user)).thenReturn(expectedResponse);
+
+        UserResponse actualResponse = service.updateUser(1L, updateUserRequest);
+
+        assertThat(actualResponse).isEqualTo(expectedResponse);
+        verify(userRepository).findById(1L);
+        verify(userRepository, never()).existsUserByEmail(anyString());
+        verify(mapper).applyUpdate(updateUserRequest, user);
+        verify(mapper).toResponse(user);
+    }
+
+    @Test
+    void updateUserBlankEmail() {
+        Date date = new Date();
+        User user = new User(1L, "name", "name@mail.ru", 123, date, date);
+        UpdateUserRequest updateUserRequest = new UpdateUserRequest("newName", "", 12);
+        UserResponse expectedResponse = new UserResponse(1L, "newName", "name@mail.ru", 12, date, date);
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(mapper.toResponse(user)).thenReturn(expectedResponse);
+
+        UserResponse actualResponse = service.updateUser(1L, updateUserRequest);
+
+        assertThat(actualResponse).isEqualTo(expectedResponse);
+        verify(userRepository).findById(1L);
+        verify(userRepository, never()).existsUserByEmail(anyString());
+        verify(mapper).applyUpdate(updateUserRequest, user);
+        verify(mapper).toResponse(user);
     }
 
     @Test
@@ -139,8 +174,36 @@ class UserServiceTest {
     }
 
     @Test
+    void deleteUser() {
+        Date date = new Date();
+        User user = new User(1L, "name", "name@mail.ru", 123, date, date);
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+
+        ArgumentCaptor<UserEvent> userEventArgumentCaptor = ArgumentCaptor.forClass(UserEvent.class);
+        service.removeUserById(1L);
+
+        verify(userKafkaProducer, times(1)).sendUserToKafka(userEventArgumentCaptor.capture());
+
+        UserEvent actualEvent = userEventArgumentCaptor.getValue();
+        UserEvent expectedEvent = new UserEvent();
+        expectedEvent.setEmail("name@mail.ru");
+        expectedEvent.setOperation(OperationType.DELETE);
+
+
+        assertThat(actualEvent).isNotEqualTo(null);
+        assertThat(actualEvent).isNotEqualTo(user);
+        assertThat(actualEvent.hashCode()).isEqualTo(expectedEvent.hashCode());
+        assertThat(actualEvent).isEqualTo(actualEvent);
+        assertThat(actualEvent).isEqualTo(expectedEvent);
+
+        verify(userRepository).findById(1L);
+        verifyNoMoreInteractions(userKafkaProducer);
+    }
+
+    @Test
     void removeUserByNotExistingId() {
-        when(userRepository.findById(1L)).thenThrow(new NotFoundException("User not found"));
+        when(userRepository.findById(1L)).thenReturn(Optional.empty());
 
         assertThrows(NotFoundException.class,
                 () -> service.removeUserById(1L));

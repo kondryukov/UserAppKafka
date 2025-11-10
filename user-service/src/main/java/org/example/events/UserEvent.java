@@ -1,10 +1,7 @@
 package org.example.events;
 
-import org.springframework.stereotype.Component;
-
 import java.util.Objects;
 
-@Component
 public class UserEvent {
     private String email;
     private OperationType operation;
